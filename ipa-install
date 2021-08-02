@@ -1,0 +1,48 @@
+#!/bin/bash
+
+server=krb.oom.ag
+server_ip=93.157.187.16
+realm=oom.ag
+hostname=macostest.oom.ag
+
+echo "adding server ip to hosts"
+if ! grep -Fxq "${server_ip} ${server}" /etc/hosts
+then
+  echo "${server_ip} ${server}" >> /etc/hosts  
+fi
+
+echo "adding dns"
+networksetup -setdnsservers Wi-Fi $server_ip 8.8.8.8 8.8.4.4
+
+echo "adding certificate"
+curl -OL http://$server/ipa/config/ca.crt
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ca.crt
+sudo mv ca.crt /etc/ipa
+
+echo "creating kerberos config"
+cp krb5.conf krb5.conf.buf
+sed -i -e 's/realm.com/'"$realm"'/g' krb5.conf.buf
+sed -i -e 's/REALM.COM/'"$(echo $realm | tr a-z A-Z)"'/g' krb5.conf.buf
+sed -i -e 's/server.com/'"$server"'/g' krb5.conf.buf
+sudo mv krb5.conf.buf /etc/krb5.conf
+
+echo "editing screensaver"
+sudo cat screensaver /etc/pam.d/screensaver | sort | uniq > screensaver_buffer
+sudo mv screensaver_buffer /etc/pam.d/screensaver
+
+echo "editing passwd"
+sudo cat passwd /etc/pam.d/passwd | sort | uniq > passwd_buffer
+sudo mv passwd_buffer /etc/pam.d/passwd
+
+echo "set hostname"
+sudo scutil --set HostName $hostname
+
+echo "directory utility setup"
+sudo defaults write /Library/Preferences/com.apple.loginwindow SHOWFULLNAME -bool false
+sudo dsconfigldap -a $server
+cp ldapv3_config.plist ldapv3_config_buf.plist
+sed -i -e 's/server.com/'"$server"'/g' ldapv3_config_buf.plist
+sed -i -e 's/dmn.one/'"$(echo $realm | cut -d. -f1)"'/g' ldapv3_config_buf.plist
+sed -i -e 's/dmn.two/'"$(echo $realm | cut -d. -f2)"'/g' ldapv3_config_buf.plist
+plutil -convert binary1 ldapv3_config_buf.plist
+sudo mv ldapv3_config_buf.plist /Library/Preferences/OpenDirectory/Configurations/LDAPv3/$server.plist
