@@ -26,13 +26,17 @@ sed -i -e 's/REALM.COM/'"$(echo $realm | tr a-z A-Z)"'/g' krb5.conf.buf
 sed -i -e 's/server.com/'"$server"'/g' krb5.conf.buf
 sudo mv krb5.conf.buf /etc/krb5.conf
 
-echo "editing screensaver"
-sudo cat screensaver /etc/pam.d/screensaver | sort | uniq > screensaver_buffer
-sudo mv screensaver_buffer /etc/pam.d/screensaver
+echo "editing pam screensaver"
+if ! grep -q "krb" /etc/pam.d/screensaver
+then
+  sudo cat screensaver >> /etc/pam.d/screensaver
+fi
 
-echo "editing passwd"
-sudo cat passwd /etc/pam.d/passwd | sort | uniq > passwd_buffer
-sudo mv passwd_buffer /etc/pam.d/passwd
+echo "editing pam passwd"
+if ! grep -q "krb" /etc/pam.d/passwd
+then
+  sudo cat passwd >> /etc/pam.d/passwd
+fi
 
 echo "set hostname"
 sudo scutil --set HostName $hostname
